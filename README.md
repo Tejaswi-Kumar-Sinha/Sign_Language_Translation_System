@@ -17,7 +17,7 @@ The system captures hand gestures using a camera and processes the input using c
 * 🧠 Machine learning/deep learning-based gesture recognition
 * 🔤 Sign-to-text translation
 * 🔊 Optional text-to-speech conversion
-* 🖥️ User-friendly interface
+* 🖥️ User-friendly inter
 
 ## 🪄Project Supervisor
 * Professor Varun Sharma Sir
