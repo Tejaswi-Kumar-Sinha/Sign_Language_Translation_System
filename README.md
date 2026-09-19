@@ -40,4 +40,4 @@ We are using **Git and GitHub** for version control and collaboration, allowing 
 
 Future improvements may include support for a larger sign-language vocabulary, continuous sentence recognition, improved real-time accuracy, support for multiple sign languages, and deployment as a web or mobile application.
 
-> **Our goal "AI for Accessibility and Inclusive Communication "** 🤝
+> **Our goal " for Accessibility and Inclusive Communication "** 🤝
