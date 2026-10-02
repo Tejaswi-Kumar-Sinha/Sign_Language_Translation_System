@@ -23,6 +23,7 @@ The system captures hand gestures using a camera and processes the input using c
 * Professor Varun Sharma Sir
 ## ✨Mentor
 * Agrim Singh Sir
+* Mohammad Ibrahim Sir
 
 
 ## 👥 Team Members
