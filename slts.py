@@ -58,10 +58,33 @@ with mp_holistic.Holistic(min_detection_confidence=0.5 , min_tracking_confidence
     draw_styled_landmarks(image,results)
 
     #show to screen
-    cv2.imshow('OpenCV Feed', image)#Can change OpenCV Feed:Just a name of interface
+    cv2.imshow('Input', image)#Can change OpenCV Feed:Just a name of interface
 
     #break gracefully
     if cv2.waitKey(10) & 0xFF == ord('q'):#press q to quit
         break
 cap.release()
 cv2.destroyAllWindows() 
+#to extract keypoints from the results of mediapipe detection
+def extract_keypoints(results):
+    pose = np.array([[res.x, res.y, res.z, res.visibility] for res in results.pose_landmarks.landmark]).flatten() if results.pose_landmarks else np.zeros(33*4)
+    face = np.array([[res.x, res.y, res.z] for res in results.face_landmarks.landmark]).flatten() if results.face_landmarks else np.zeros(468*3)
+    lh = np.array([[res.x, res.y, res.z] for res in results.left_hand_landmarks.landmark]).flatten() if results.left_hand_landmarks else np.zeros(21*3)
+    rh = np.array([[res.x, res.y, res.z] for res in results.right_hand_landmarks.landmark]).flatten() if results.right_hand_landmarks else np.zeros(21*3)
+    return np.concatenate([pose, face, lh, rh])
+
+#path for exported data, numpy arrays
+DATA_PATH = os.path.join('MP_Data')#creating a folder to store data
+#actions that we try to detect
+actions = np.array(['hello', 'thanks', 'iloveyou'])#creating a numpy array of actions
+#number of sequences and videos for each action
+no_sequences = 30
+#Videos are going to be 30 frames in length
+sequence_length = 30
+
+for action in actions:
+    for sequence in range(no_sequences):
+        try: 
+            os.makedirs(os.path.join(DATA_PATH, action, str(sequence)))
+        except:
+            pass
