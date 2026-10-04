@@ -41,28 +41,6 @@ def draw_styled_landmarks(image,results):
                               mp_drawing.DrawingSpec(color=(245,117,66),thickness=2, circle_radius=4),
                               mp_drawing.DrawingSpec(color=(245,66,230),thickness=2, circle_radius=2))
     #Draw right hand connections
-   
-#using opencv
-cap = cv2.VideoCapture(0)#accessing webcam
-#set mediapipe model
-with mp_holistic.Holistic(min_detection_confidence=0.5 , min_tracking_confidence=0.5) as holistic:
- while cap.isOpened():#creating a loop for mutliple frames
-    #Read feed
-    ret, frame = cap.read()
-
-    #Make detections
-    image,results=mediapipe_detection(frame,holistic)
-    print(results)
-
-    #Draw landmarks
-    draw_styled_landmarks(image,results)
-
-    #show to screen
-    cv2.imshow('Input', image)#Can change OpenCV Feed:Just a name of interface
-
-    #break gracefully
-    if cv2.waitKey(10) & 0xFF == ord('q'):#press q to quit
-        break
 
 #to extract keypoints from the results of mediapipe detection
 def extract_keypoints(results):
@@ -80,14 +58,15 @@ actions = np.array(['hello', 'thanks', 'iloveyou'])#creating a numpy array of ac
 no_sequences = 30
 #Videos are going to be 30 frames in length
 sequence_length = 30
-
+"""#this is going to create folders for each action and each sequence
 for action in actions:
     for sequence in range(no_sequences):
         try: 
             os.makedirs(os.path.join(DATA_PATH, action, str(sequence)))
         except:
             pass
-
+"""
+"""
 cap = cv2.VideoCapture(0)#accessing webcam
 #set mediapipe model
 with mp_holistic.Holistic(min_detection_confidence=0.5 , min_tracking_confidence=0.5) as holistic:
@@ -132,4 +111,117 @@ with mp_holistic.Holistic(min_detection_confidence=0.5 , min_tracking_confidence
                #break gracefully
                if cv2.waitKey(10) & 0xFF == ord('q'):#press q to quit
                 break
-         
+"""   
+#preparing the data and creating labels and features
+from sklearn.model_selection import train_test_split
+from keras.utils import to_categorical
+label_map = {label:num for num, label in enumerate(actions)}
+sequences, labels = [], []
+for action in actions:
+    for sequence in range(no_sequences):
+        window = []
+        for frame_num in range(sequence_length):
+            res = np.load(os.path.join(DATA_PATH, action, str(sequence), "{}.npy".format(frame_num)))
+            window.append(res)
+        sequences.append(window)
+        labels.append(label_map[action])
+
+X = np.array(sequences)
+y = to_categorical(labels).astype(int)
+x_train, x_test, y_train, y_test = train_test_split(X, y, test_size=0.05)
+#Build and train the LSTM neural network
+from keras.models import Sequential
+from keras.layers import LSTM, Dense
+from keras.callbacks import TensorBoard
+log_dir = os.path.join('Logs')
+tensorboard_callback = TensorBoard(log_dir=log_dir)
+model = Sequential()
+model.add(LSTM(64, return_sequences=True, activation='relu', input_shape=(30,1662)))
+model.add(LSTM(128, return_sequences=True, activation='relu'))
+model.add(LSTM(64, return_sequences=False, activation='relu'))
+model.add(Dense(64, activation='relu'))
+model.add(Dense(32, activation='relu'))
+model.add(Dense(len(actions), activation='softmax'))
+
+model.compile(optimizer='Adam', loss='categorical_crossentropy', metrics=['categorical_accuracy'])
+#model.fit(x_train, y_train, epochs=2000, callbacks=[tensorboard_callback])//To train the model
+#Make predictions
+res = model.predict(x_test)
+#save weights
+model.save('action.h5')
+del model
+model = Sequential()
+model.add(LSTM(64, return_sequences=True, activation='relu', input_shape=(30,1662)))
+model.add(LSTM(128, return_sequences=True, activation='relu'))
+model.add(LSTM(64, return_sequences=False, activation='relu'))
+model.add(Dense(64, activation='relu'))
+model.add(Dense(32, activation='relu'))
+model.add(Dense(len(actions), activation='softmax'))
+
+model.compile(optimizer='Adam', loss='categorical_crossentropy', metrics=['categorical_accuracy'])
+
+
+model.load_weights('action.h5')
+#Valuate the model
+from sklearn.metrics import multilabel_confusion_matrix, accuracy_score
+yhat = model.predict(x_test)
+ytrue = np.argmax(y_test, axis=1).tolist()
+yhat = np.argmax(yhat, axis=1).tolist()
+print(accuracy_score(ytrue, yhat))
+
+#New detection variables
+sequence = []   
+sentence = []
+predictions = []
+treshold = 0.4
+
+#using OpenCV
+cap = cv2.VideoCapture(0)#accessing webcam
+#set mediapipe model
+with mp_holistic.Holistic(min_detection_confidence=0.5 , min_tracking_confidence=0.5) as holistic:
+ while cap.isOpened():#creating a loop for mutliple frames
+    #Read feed
+    ret, frame = cap.read()
+
+    #Make detections
+    image,results=mediapipe_detection(frame,holistic)
+    print(results)
+
+    #Draw landmarks
+    draw_styled_landmarks(image,results)
+
+    #Prediction logic
+    keypoints = extract_keypoints(results)
+    sequence.insert(0, keypoints)
+    sequence = sequence[:30]
+
+    if len(sequence) == 30:
+        res = model.predict(np.expand_dims(sequence, axis=0))[0]
+       # print(res)
+        print(actions[np.argmax(res)])
+        predictions.append(np.argmax(res))
+
+        # viz logic
+        if np.unique(predictions[-10:])[0]==np.argmax(res):   
+            if res[np.argmax(res)] > treshold:
+                if len(sentence) > 0:
+                    if actions[np.argmax(res)] != sentence[-1]:
+                        sentence.append(actions[np.argmax(res)])
+                else:
+                    sentence.append(actions[np.argmax(res)])
+                if len(sentence) > 5: 
+                   sentence = sentence[-5:]
+
+    #Viz probabilities
+   # image = prob_viz(res, actions, image, colors)
+
+    cv2.rectangle(image, (0,0), (640, 40), (245, 117, 16), -1)
+    cv2.putText(image, ' '.join(sentence), (3,30),
+                cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
+
+    #show to screen
+    cv2.imshow('Input', image)#Can change OpenCV Feed:Just a name of interface
+
+    #break gracefully
+    if cv2.waitKey(10) & 0xFF == ord('q'):#press q to quit
+        break
