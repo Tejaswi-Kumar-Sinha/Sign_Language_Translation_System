@@ -63,8 +63,7 @@ with mp_holistic.Holistic(min_detection_confidence=0.5 , min_tracking_confidence
     #break gracefully
     if cv2.waitKey(10) & 0xFF == ord('q'):#press q to quit
         break
-cap.release()
-cv2.destroyAllWindows() 
+
 #to extract keypoints from the results of mediapipe detection
 def extract_keypoints(results):
     pose = np.array([[res.x, res.y, res.z, res.visibility] for res in results.pose_landmarks.landmark]).flatten() if results.pose_landmarks else np.zeros(33*4)
@@ -88,3 +87,49 @@ for action in actions:
             os.makedirs(os.path.join(DATA_PATH, action, str(sequence)))
         except:
             pass
+
+cap = cv2.VideoCapture(0)#accessing webcam
+#set mediapipe model
+with mp_holistic.Holistic(min_detection_confidence=0.5 , min_tracking_confidence=0.5) as holistic:
+
+  #New Loop
+  #loop through actions
+  for action in actions:
+    #loop through sequences aka videos
+    for sequence in range(no_sequences):
+      #loop through video length aka sequence length
+      for frame_num in range(sequence_length):
+         #Read feed
+               ret, frame = cap.read()
+         
+               #Make detections
+               image,results=mediapipe_detection(frame,holistic)                
+               print(results)
+         
+               #Draw landmarks
+               draw_styled_landmarks(image,results)
+         
+               #New Apply wait logic
+               if frame_num == 0:
+                 cv2.putText(image, 'STARTING COLLECTION', (120,200),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 4, cv2.LINE_AA)
+                 cv2.putText(image, 'Collecting frames for {} Video Number {}'.format(action, sequence), (15,12),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,255), 1, cv2.LINE_AA)
+                 #show to screen
+                 cv2.imshow('Input', image)#Can change OpenCV Feed:Just a name of interface
+                 cv2.waitKey(2000)
+               else:
+                                 cv2.putText(image, 'Collecting frames for {} Video Number {}'.format(action, sequence), (15,12),
+                                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,255), 1, cv2.LINE_AA)
+                                 #show to screen
+                                 cv2.imshow('Input', image)#Can change OpenCV Feed:Just a name of interface
+         
+               #New Export keypoints
+               keypoints = extract_keypoints(results)
+               npy_path = os.path.join(DATA_PATH, action, str(sequence), str(frame_num))
+               np.save(npy_path, keypoints)
+         
+               #break gracefully
+               if cv2.waitKey(10) & 0xFF == ord('q'):#press q to quit
+                break
+         
