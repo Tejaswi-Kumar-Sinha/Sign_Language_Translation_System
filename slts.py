@@ -5,6 +5,7 @@ import numpy as np
 import os
 from matplotlib import pyplot as plt
 import time
+import kagglehub
 import mediapipe as mp
 
 mp_holistic = mp.solutions.holistic #Holistic model:to make detections
@@ -50,73 +51,22 @@ def extract_keypoints(results):
     rh = np.array([[res.x, res.y, res.z] for res in results.right_hand_landmarks.landmark]).flatten() if results.right_hand_landmarks else np.zeros(21*3)
     return np.concatenate([pose, face, lh, rh])
 
-#path for exported data, numpy arrays
-DATA_PATH = os.path.join('MP_Data')#creating a folder to store data
+# Automatically download the keypoint dataset from Kaggle
+kaggle_path = kagglehub.dataset_download("your-kaggle-dataset-slug-here") # Replace with your specific Kaggle dataset slug/path
+
+# path for exported data, numpy arrays pointing directly to the Kaggle folder
+DATA_PATH = os.path.join(kaggle_path, 'MP_Data') 
 #actions that we try to detect
 actions = np.array(['hello', 'thanks', 'iloveyou'])#creating a numpy array of actions
 #number of sequences and videos for each action
 no_sequences = 30
 #Videos are going to be 30 frames in length
 sequence_length = 30
-"""#this is going to create folders for each action and each sequence
-for action in actions:
-    for sequence in range(no_sequences):
-        try: 
-            os.makedirs(os.path.join(DATA_PATH, action, str(sequence)))
-        except:
-            pass
-"""
-"""
-cap = cv2.VideoCapture(0)#accessing webcam
-#set mediapipe model
-with mp_holistic.Holistic(min_detection_confidence=0.5 , min_tracking_confidence=0.5) as holistic:
 
-  #New Loop
-  #loop through actions
-  for action in actions:
-    #loop through sequences aka videos
-    for sequence in range(no_sequences):
-      #loop through video length aka sequence length
-      for frame_num in range(sequence_length):
-         #Read feed
-               ret, frame = cap.read()
-         
-               #Make detections
-               image,results=mediapipe_detection(frame,holistic)                
-               print(results)
-         
-               #Draw landmarks
-               draw_styled_landmarks(image,results)
-         
-               #New Apply wait logic
-               if frame_num == 0:
-                 cv2.putText(image, 'STARTING COLLECTION', (120,200),
-                            cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 4, cv2.LINE_AA)
-                 cv2.putText(image, 'Collecting frames for {} Video Number {}'.format(action, sequence), (15,12),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,255), 1, cv2.LINE_AA)
-                 #show to screen
-                 cv2.imshow('Input', image)#Can change OpenCV Feed:Just a name of interface
-                 cv2.waitKey(2000)
-               else:
-                                 cv2.putText(image, 'Collecting frames for {} Video Number {}'.format(action, sequence), (15,12),
-                                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,255), 1, cv2.LINE_AA)
-                                 #show to screen
-                                 cv2.imshow('Input', image)#Can change OpenCV Feed:Just a name of interface
-         
-               #New Export keypoints
-               keypoints = extract_keypoints(results)
-               npy_path = os.path.join(DATA_PATH, action, str(sequence), str(frame_num))
-               np.save(npy_path, keypoints)
-         
-               #break gracefully
-               if cv2.waitKey(10) & 0xFF == ord('q'):#press q to quit
-                break
-"""   
-#preparing the data and creating labels and features
-from sklearn.model_selection import train_test_split
-from keras.utils import to_categorical
 label_map = {label:num for num, label in enumerate(actions)}
 sequences, labels = [], []
+
+# Loop through actions, sequences, and frames to load NumPy arrays from Kaggle dataset
 for action in actions:
     for sequence in range(no_sequences):
         window = []
@@ -126,9 +76,14 @@ for action in actions:
         sequences.append(window)
         labels.append(label_map[action])
 
+from sklearn.model_selection import train_test_split
+from keras.utils import to_categorical
+
 X = np.array(sequences)
 y = to_categorical(labels).astype(int)
+
 x_train, x_test, y_train, y_test = train_test_split(X, y, test_size=0.05)
+
 #Build and train the LSTM neural network
 from keras.models import Sequential
 from keras.layers import LSTM, Dense
