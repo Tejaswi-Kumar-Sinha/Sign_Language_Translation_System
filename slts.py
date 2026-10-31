@@ -52,12 +52,16 @@ def extract_keypoints(results):
     return np.concatenate([pose, face, lh, rh])
 
 # Automatically download the keypoint dataset from Kaggle
-kaggle_path = kagglehub.dataset_download("your-kaggle-dataset-slug-here") # Replace with your specific Kaggle dataset slug/path
+kaggle_path = kagglehub.dataset_download("swaptr/indian-sign-language-mediapipe-holistic-landmarks") # Replace with your specific Kaggle dataset slug/path
 
 # path for exported data, numpy arrays pointing directly to the Kaggle folder
-DATA_PATH = os.path.join(kaggle_path, 'MP_Data') 
-#actions that we try to detect
-actions = np.array(['hello', 'thanks', 'iloveyou'])#creating a numpy array of actions
+DATA_PATH = os.path.join(kaggle_path) 
+
+# Automatically grab the folder names from the dataset and take the first 3 for quick training
+all_actions = np.array([d for d in os.listdir(DATA_PATH) if os.path.isdir(os.path.join(DATA_PATH, d))])
+actions = all_actions[:3] 
+print(f"Dynamic Actions Loaded: {actions}")
+
 #number of sequences and videos for each action
 no_sequences = 30
 #Videos are going to be 30 frames in length
@@ -66,16 +70,23 @@ sequence_length = 30
 label_map = {label:num for num, label in enumerate(actions)}
 sequences, labels = [], []
 
-# Loop through actions, sequences, and frames to load NumPy arrays from Kaggle dataset
 for action in actions:
-    for sequence in range(no_sequences):
+    action_path = os.path.join(DATA_PATH, action)
+    sequences_in_action = [d for d in os.listdir(action_path) if os.path.isdir(os.path.join(action_path, d))][:no_sequences]
+    
+    for sequence in sequences_in_action:
         window = []
+        seq_path = os.path.join(action_path, sequence)
         for frame_num in range(sequence_length):
-            res = np.load(os.path.join(DATA_PATH, action, str(sequence), "{}.npy".format(frame_num)))
+            npy_file = os.path.join(seq_path, "{}.npy".format(frame_num))
+            if os.path.exists(npy_file):
+                res = np.load(npy_file)
+            else:
+                res = np.zeros(1662) # Fallback vector
             window.append(res)
         sequences.append(window)
         labels.append(label_map[action])
-
+        
 from sklearn.model_selection import train_test_split
 from keras.utils import to_categorical
 
@@ -99,7 +110,7 @@ model.add(Dense(32, activation='relu'))
 model.add(Dense(len(actions), activation='softmax'))
 
 model.compile(optimizer='Adam', loss='categorical_crossentropy', metrics=['categorical_accuracy'])
-#model.fit(x_train, y_train, epochs=2000, callbacks=[tensorboard_callback])//To train the model
+model.fit(x_train, y_train, epochs=30, callbacks=[tensorboard_callback]) #To train the model
 #Make predictions
 res = model.predict(x_test)
 #save weights
